@@ -1,86 +1,37 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <fstream>
-#include <vector>
-#include <string>
-#include <iomanip>
 #include <cstring>
+#include <iomanip>
 
-struct Date {
-    int day;
-    int month;
-    int year;
-
-    Date() : day(0), month(0), year(0) {}
-
-    Date(std::string str) {
-        if (str.length() == 8) {
-            day = std::stoi(str.substr(0, 2));
-            month = std::stoi(str.substr(2, 2));
-            year = std::stoi(str.substr(4, 4));
-        }
-    }
-
-    int getAge() {
-        int age = 2026 - year;
-        if (5 < month || (5 == month && 21 < day)) {
-            age--;
-        }
-        return age;
-    }
-};
-
-struct Address {
-    char city[50];
-    char street[50];
-    int house;
-    int apartment;
-
-    Address() {
-        memset(city, 0, sizeof(city));
-        memset(street, 0, sizeof(street));
-        house = 0;
-        apartment = 0;
-    }
-};
+using namespace std;
 
 struct Person {
     char lastName[50];
     char firstName[50];
     char secondName[50];
-    Date birthDate;
-    char education;
-    char maritalStatus;
-    int childrenCount;
-    char profession;
-    Address address;
+    int day, month, year;
+    char education;      
+    char marital;        
+    int children;
+    char profession;    
+    char city[50];
+    char street[50];
+    int house;
+    int apartment;
     char phone[20];
-
-    Person() {
-        memset(lastName, 0, sizeof(lastName));
-        memset(firstName, 0, sizeof(firstName));
-        memset(secondName, 0, sizeof(secondName));
-        education = ' ';
-        maritalStatus = ' ';
-        childrenCount = 0;
-        profession = ' ';
-        memset(phone, 0, sizeof(phone));
-    }
 };
 
-void copyString(char* dest, std::string src, int maxLen) {
-    strncpy_s(dest, maxLen, src.c_str(), _TRUNCATE);
+
+void parseDate(const char* dateStr, int& d, int& m, int& y) {
+    d = (dateStr[0] - '0') * 10 + (dateStr[1] - '0');
+    m = (dateStr[2] - '0') * 10 + (dateStr[3] - '0');
+    y = (dateStr[4] - '0') * 1000 + (dateStr[5] - '0') * 100 +
+        (dateStr[6] - '0') * 10 + (dateStr[7] - '0');
 }
 
-std::string getString(char* src) {
-    return std::string(src);
-}
 
-std::string getInitials(Person p) {
-    return getString(p.lastName) + " " + std::string(1, p.firstName[0]) + "." + std::string(1, p.secondName[0]) + ".";
-}
-
-std::string getEduName(char edu) {
+const char* educationToString(char edu) {
     switch (edu) {
     case 'В': return "Высшее";
     case 'С': return "Среднее";
@@ -89,60 +40,112 @@ std::string getEduName(char edu) {
     }
 }
 
+int calculateAge(int bDay, int bMonth, int bYear) {
+    int curDay = 21, curMonth = 5, curYear = 2026;
+    int age = curYear - bYear;
+    if (curMonth < bMonth || (curMonth == bMonth && curDay < bDay))
+        age--;
+    return age;
+}
+
+void getInitials(const Person& p, char* result) {
+    sprintf(result, "%s %c.%c.", p.lastName, p.firstName[0], p.secondName[0]);
+}
+
 int main() {
-    setlocale(LC_ALL, "Russian");
-    std::ifstream txtFile("base_1.txt");
-    std::ofstream binFile("base.dat", std::ios::binary);
+	setlocale(LC_ALL, "Russian");
+    //1: Создание бинарного файла из текстового
 
-    if (!txtFile.is_open()) {
-        std::cerr << "Ошибка: не удалось открыть base_1.txt" << std::endl;
+    ifstream in("base_1.txt");
+    if (!in) {
+        cout << "Ошибка: не найден base_1.txt" << endl;
+        cout << "Нажмите Enter для выхода...";
+        cin.get();
         return 1;
     }
 
-    Person p;
-    std::string temp;
-
-    while (txtFile >> temp >> p.firstName >> p.secondName) {
-        copyString(p.lastName, temp, 50);
-
-        std::string dateStr;
-        txtFile >> dateStr;
-        p.birthDate = Date(dateStr);
-
-        txtFile >> p.education >> p.maritalStatus >> p.childrenCount >> p.profession;
-
-        std::string city, street, phone;
-        txtFile >> city >> street >> p.address.house >> p.address.apartment >> phone;
-
-        copyString(p.address.city, city, 50);
-        copyString(p.address.street, street, 50);
-        copyString(p.phone, phone, 20);
-
-        binFile.write(reinterpret_cast<char*>(&p), sizeof(Person));
-    }
-
-    txtFile.close();
-    binFile.close();
-
-    std::ifstream inFile("base.dat", std::ios::binary);
-    if (!inFile.is_open()) {
-        std::cerr << "Ошибка: не удалось открыть base.dat" << std::endl;
+    ofstream out("base.bin", ios::binary);
+    if (!out) {
+        cout << "Ошибка: не могу создать base.bin" << endl;
+        cin.get();
         return 1;
     }
 
-    std::vector<Person> persons;
+    char buffer[500];
     Person person;
+    int records = 0;
 
-    while (inFile.read(reinterpret_cast<char*>(&person), sizeof(Person))) {
-        persons.push_back(person);
+    while (in.getline(buffer, 500)) {
+        if (strlen(buffer) < 10) continue;
+
+        char lName[50], fName[50], sName[50];
+        char dateStr[20];
+        char edu, marital;
+        int children;
+        char prof;
+        char city[50], street[50];
+        int house, apt;
+        char phone[20];
+
+        int res = sscanf(buffer, "%s %s %s %s %c %c %d %c %s %s %d %d %s",
+            lName, fName, sName, dateStr,
+            &edu, &marital, &children, &prof,
+            city, street, &house, &apt, phone);
+
+        if (res != 13) continue;
+
+        strncpy(person.lastName, lName, 50);
+        strncpy(person.firstName, fName, 50);
+        strncpy(person.secondName, sName, 50);
+        parseDate(dateStr, person.day, person.month, person.year);
+        person.education = edu;
+        person.marital = marital;
+        person.children = children;
+        person.profession = prof;
+        strncpy(person.city, city, 50);
+        strncpy(person.street, street, 50);
+        person.house = house;
+        person.apartment = apt;
+        strncpy(person.phone, phone, 20);
+
+        out.write((char*)&person, sizeof(Person));
+        records++;
     }
-    inFile.close();
+
+    in.close();
+    out.close();
+
+    //2: Обработка бинарного файла
+
+    ifstream binIn("base.bin", ios::binary);
+    if (!binIn) {
+        cout << "Ошибка: не найден base.bin" << endl;
+        return 1;
+    }
+
+    Person* persons = nullptr;
+    int total = 0;
+    Person temp;
+    while (binIn.read((char*)&temp, sizeof(Person))) {
+        total++;
+    }
+    if (total == 0) {
+        cout << "Файл пуст." << endl;
+        cin.get();
+        return 1;
+    }
+
+    persons = new Person[total];
+    binIn.clear();
+    binIn.seekg(0, ios::beg);
+    binIn.read((char*)persons, total * sizeof(Person));
+    binIn.close();
 
     int countV = 0, countS = 0, countN = 0;
-    for (int i = 0; i < persons.size(); i++) {
+    for (int i = 0; i < total; i++) {
         if (persons[i].education == 'В') countV++;
         else if (persons[i].education == 'С') countS++;
-        else countN++;
+        else if (persons[i].education == 'Н') countN++;
     }
 
     char maxEdu = 'В';
@@ -155,81 +158,90 @@ int main() {
     if (countS < minCount) { minCount = countS; minEdu = 'С'; }
     if (countN < minCount) { minCount = countN; minEdu = 'Н'; }
 
-    std::vector<Person> groupMax, groupMin;
-    for (int i = 0; i < persons.size(); i++) {
+    Person* groupMax = new Person[maxCount];
+    Person* groupMin = new Person[minCount];
+    int idxMax = 0, idxMin = 0;
+
+    for (int i = 0; i < total; i++) {
         if (persons[i].education == maxEdu) {
-            groupMax.push_back(persons[i]);
+            groupMax[idxMax++] = persons[i];
         }
         if (persons[i].education == minEdu) {
-            groupMin.push_back(persons[i]);
+            groupMin[idxMin++] = persons[i];
         }
     }
 
-    std::ofstream fileMax("max_group.dat", std::ios::binary);
-    std::ofstream fileMin("min_group.dat", std::ios::binary);
+    ofstream fMax("max_group.bin", ios::binary);
+    ofstream fMin("min_group.bin", ios::binary);
 
-    for (int i = 0; i < groupMax.size(); i++) {
-        fileMax.write(reinterpret_cast<char*>(&groupMax[i]), sizeof(Person));
+    for (int i = 0; i < maxCount; i++) {
+        fMax.write((char*)&groupMax[i], sizeof(Person));
+    }
+    for (int i = 0; i < minCount; i++) {
+        fMin.write((char*)&groupMin[i], sizeof(Person));
     }
 
-    for (int i = 0; i < groupMin.size(); i++) {
-        fileMin.write(reinterpret_cast<char*>(&groupMin[i]), sizeof(Person));
-    }
+    fMax.close();
+    fMin.close();
 
-    fileMax.close();
-    fileMin.close();
 
-    std::string titleMin = "Малочисленная: " + getEduName(minEdu);
-    std::string titleMax = "Многочисленная: " + getEduName(maxEdu);
+    // Вывод на экран в 2 колонки
+    cout << left;
+    cout << setw(45) << ("Малочисленная: " + string(educationToString(minEdu)))
+        << setw(45) << ("Многочисленная: " + string(educationToString(maxEdu))) << endl;
+    cout << string(90, '-') << endl;
 
-    std::cout << std::left;
-    std::cout << std::setw(50) << titleMin << std::setw(50) << titleMax << std::endl;
-    std::cout << std::string(100, '-') << std::endl;
-
-    std::cout << std::setw(20) << "ФИО"
-        << std::setw(8) << "Возр."
-        << std::setw(6) << "Сем."
-        << std::setw(6) << "Дет."
-        << std::setw(6) << "Проф."
+    cout << setw(22) << "ФИО"
+        << setw(8) << "Возр."
+        << setw(7) << "Сем."
+        << setw(6) << "Дет."
+        << setw(6) << "Проф."
         << "  "
-        << std::setw(20) << "ФИО"
-        << std::setw(8) << "Возр."
-        << std::setw(6) << "Сем."
-        << std::setw(6) << "Дет."
-        << std::setw(6) << "Проф."
-        << std::endl;
-    std::cout << std::string(100, '-') << std::endl;
+        << setw(22) << "ФИО"
+        << setw(8) << "Возр."
+        << setw(7) << "Сем."
+        << setw(6) << "Дет."
+        << setw(6) << "Проф." << endl;
+    cout << string(90, '-') << endl;
 
-    int maxSize = groupMax.size() > groupMin.size() ? groupMax.size() : groupMin.size();
+    int maxSize = (maxCount > minCount) ? maxCount : minCount;
 
     for (int i = 0; i < maxSize; i++) {
-        if (i < groupMin.size()) {
-            Person p = groupMin[i];
-            std::cout << std::setw(20) << getInitials(p)
-                << std::setw(8) << p.birthDate.getAge()
-                << std::setw(6) << p.maritalStatus
-                << std::setw(6) << p.childrenCount
-                << std::setw(6) << p.profession;
+        if (i < minCount) {
+            char initials[100];
+            getInitials(groupMin[i], initials);
+            cout << setw(22) << initials
+                << setw(8) << calculateAge(groupMin[i].day, groupMin[i].month, groupMin[i].year)
+                << setw(7) << groupMin[i].marital
+                << setw(6) << groupMin[i].children
+                << setw(6) << groupMin[i].profession;
         }
         else {
-            std::cout << std::string(46, ' ');
+            cout << string(49, ' ');
         }
 
-        std::cout << "  ";
+        cout << "  ";
 
-        if (i < groupMax.size()) {
-            Person p = groupMax[i];
-            std::cout << std::setw(20) << getInitials(p)
-                << std::setw(8) << p.birthDate.getAge()
-                << std::setw(6) << p.maritalStatus
-                << std::setw(6) << p.childrenCount
-                << std::setw(6) << p.profession;
+        if (i < maxCount) {
+            char initials[100];
+            getInitials(groupMax[i], initials);
+            cout << setw(22) << initials
+                << setw(8) << calculateAge(groupMax[i].day, groupMax[i].month, groupMax[i].year)
+                << setw(7) << groupMax[i].marital
+                << setw(6) << groupMax[i].children
+                << setw(6) << groupMax[i].profession;
         }
         else {
-            std::cout << std::string(46, ' ');
+            cout << string(49, ' ');
         }
-        std::cout << std::endl;
+        cout << endl;
     }
+    cout << string(90, '-') << endl;
+
+    delete[] persons;
+    delete[] groupMax;
+    delete[] groupMin;
+
 
     return 0;
 }
