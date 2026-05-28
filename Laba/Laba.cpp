@@ -1,28 +1,26 @@
-﻿#include <iostream>
+﻿#define _CRT_SECURE_NO_WARNINGS
+#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <cstring>
 
-// Короче сдесь мы задаём структуры так как это сказанно в задании,
-// тоесть для даты, адреса и человека.
 struct Date {
     int day;
     int month;
     int year;
 
-	// Вот тут идут конструкторы для даты
-    // один по умолчанию, а другой принимает строку и парсит её на день, месяц и год.
     Date() : day(0), month(0), year(0) {}
 
     Date(std::string str) {
-		// stoi преобразует строку в число, а substr выделяет подстроку из строки.
-        day = std::stoi(str.substr(0, 2));
-        month = std::stoi(str.substr(2, 2));
-        year = std::stoi(str.substr(4, 4));
+        if (str.length() == 8) {
+            day = std::stoi(str.substr(0, 2));
+            month = std::stoi(str.substr(2, 2));
+            year = std::stoi(str.substr(4, 4));
+        }
     }
 
-	//Этот метод возвращает возраст человека на 2026 год, учитывая его день и месяц рождения.
     int getAge() {
         int age = 2026 - year;
         if (5 < month || (5 == month && 21 < day)) {
@@ -30,131 +28,134 @@ struct Date {
         }
         return age;
     }
-
-	// Этот метод преобразует данные обратно в строку.
-    std::string toString() {
-        std::string d = std::to_string(day);
-        std::string m = std::to_string(month);
-        std::string y = std::to_string(year);
-
-        if (d.length() == 1) d = "0" + d;
-        if (m.length() == 1) m = "0" + m;
-
-        return d + m + y;
-    }
 };
+
 struct Address {
-    std::string city;
-    std::string street;
+    char city[50];
+    char street[50];
     int house;
     int apartment;
 
-    std::string toString() {
-        return city + " " + street + " " + std::to_string(house) + " " + std::to_string(apartment);
+    Address() {
+        memset(city, 0, sizeof(city));
+        memset(street, 0, sizeof(street));
+        house = 0;
+        apartment = 0;
     }
 };
+
 struct Person {
-    std::string lastName;
-    std::string firstName;
-    std::string secondName;
+    char lastName[50];
+    char firstName[50];
+    char secondName[50];
     Date birthDate;
     char education;
     char maritalStatus;
     int childrenCount;
     char profession;
     Address address;
-    std::string phone;
+    char phone[20];
+
+    Person() {
+        memset(lastName, 0, sizeof(lastName));
+        memset(firstName, 0, sizeof(firstName));
+        memset(secondName, 0, sizeof(secondName));
+        education = ' ';
+        maritalStatus = ' ';
+        childrenCount = 0;
+        profession = ' ';
+        memset(phone, 0, sizeof(phone));
+    }
 };
 
+void copyString(char* dest, std::string src, int maxLen) {
+    strncpy_s(dest, maxLen, src.c_str(), _TRUNCATE);
+}
 
+std::string getString(char* src) {
+    return std::string(src);
+}
+
+std::string getInitials(Person p) {
+    return getString(p.lastName) + " " + std::string(1, p.firstName[0]) + "." + std::string(1, p.secondName[0]) + ".";
+}
 
 std::string getEduName(char edu) {
     switch (edu) {
     case 'В': return "Высшее";
     case 'С': return "Среднее";
     case 'Н': return "Начальное";
+    default: return "Неизвестно";
     }
 }
 
-// Этот метод возвращает строку с фамилией и инициалами человека.
-std::string getInitials(Person p) {
-    return p.lastName + " " + p.firstName.substr(0, 1) + "." + p.secondName.substr(0, 1) + ".";
-}
-
-
 int main() {
-    // Эта строчка нужна чтобы у тебя работала кирилица
-	setlocale(LC_ALL, "Russian");
+    setlocale(LC_ALL, "Russian");
+    std::ifstream txtFile("base_1.txt");
+    std::ofstream binFile("base.dat", std::ios::binary);
 
-    //Эта строка проверяет наличие файла.
-    std::ifstream inFile("base_1.txt");
+    if (!txtFile.is_open()) {
+        std::cerr << "Ошибка: не удалось открыть base_1.txt" << std::endl;
+        return 1;
+    }
+
+    Person p;
+    std::string temp;
+
+    while (txtFile >> temp >> p.firstName >> p.secondName) {
+        copyString(p.lastName, temp, 50);
+
+        std::string dateStr;
+        txtFile >> dateStr;
+        p.birthDate = Date(dateStr);
+
+        txtFile >> p.education >> p.maritalStatus >> p.childrenCount >> p.profession;
+
+        std::string city, street, phone;
+        txtFile >> city >> street >> p.address.house >> p.address.apartment >> phone;
+
+        copyString(p.address.city, city, 50);
+        copyString(p.address.street, street, 50);
+        copyString(p.phone, phone, 20);
+
+        binFile.write(reinterpret_cast<char*>(&p), sizeof(Person));
+    }
+
+    txtFile.close();
+    binFile.close();
+
+    std::ifstream inFile("base.dat", std::ios::binary);
     if (!inFile.is_open()) {
-        std::cerr << "Ошибка: не удалось открыть файл base_1.txt" << std::endl;
+        std::cerr << "Ошибка: не удалось открыть base.dat" << std::endl;
         return 1;
     }
 
     std::vector<Person> persons;
-    Person p;
+    Person person;
 
-	// Вот тут мы читаем данные из файла и заполняем структуру Person, а потом добавляем её в вектор persons
-    //Конкретно икл идёт до тех пор пока ему в каждой следующей строчке будут встречатся ФИО
-    // каждый символ >> переводит чтение на следующее слово в строке
-    while (inFile >> p.lastName >> p.firstName >> p.secondName) {
-        std::string dateStr; 
-        inFile >> dateStr; // т.к в самом условии цикла мы уже использовали >> три раза, то при четвёртом ты попадаешь в дату
-        p.birthDate = Date(dateStr);
-
-        inFile >> p.education >> p.maritalStatus >> p.childrenCount >> p.profession;
-        inFile >> p.address.city >> p.address.street >> p.address.house >> p.address.apartment >> p.phone;
-
-		persons.push_back(p); //Тут после чтения всех слов разделённых пробелом мы добавляем заполненную структуру Person в вектор persons
+    while (inFile.read(reinterpret_cast<char*>(&person), sizeof(Person))) {
+        persons.push_back(person);
     }
     inFile.close();
 
-	// Вот тут мы считаем количество людей с каждым уровнем образования
-    int countV = 0;
-    int countS = 0;
-    int countN = 0;
-
+    int countV = 0, countS = 0, countN = 0;
     for (int i = 0; i < persons.size(); i++) {
-        if (persons[i].education == 'В') {
-            countV++;
-        }
-        else if (persons[i].education == 'С') {
-            countS++;
-        }
-        else if (persons[i].education == 'Н') {
-            countN++;
-        }
+        if (persons[i].education == 'В') countV++;
+        else if (persons[i].education == 'С') countS++;
+        else countN++;
     }
 
-	// Вот тут мы определяем какой уровень образования самый многочисленный, а какой самый малочисленный
     char maxEdu = 'В';
     int maxCount = countV;
+    if (countS > maxCount) { maxCount = countS; maxEdu = 'С'; }
+    if (countN > maxCount) { maxCount = countN; maxEdu = 'Н'; }
 
-    if (countS > maxCount) {
-        maxCount = countS;
-        maxEdu = 'С';
-    }
-    if (countN > maxCount) {
-        maxCount = countN;
-        maxEdu = 'Н';
-    }
     char minEdu = 'В';
     int minCount = countV;
-    if (countS < minCount) {
-        minCount = countS;
-        minEdu = 'С';
-    }
-    if (countN < minCount) {
-        minCount = countN;
-        minEdu = 'Н';
-    }
+    if (countS < minCount) { minCount = countS; minEdu = 'С'; }
+    if (countN < minCount) { minCount = countN; minEdu = 'Н'; }
 
-	// Вот тут мы формируем две группы людей: одну с самым многочисленным уровнем образования, а другую с самым малочисленным
-    std::vector<Person> groupMax;
-    std::vector<Person> groupMin;
-
+    std::vector<Person> groupMax, groupMin;
     for (int i = 0; i < persons.size(); i++) {
         if (persons[i].education == maxEdu) {
             groupMax.push_back(persons[i]);
@@ -164,53 +165,69 @@ int main() {
         }
     }
 
-	// Вот тут мы записываем эти две группы в два разных файла
-    std::ofstream fileMax("max_group.txt");
-    std::ofstream fileMin("min_group.txt");
+    std::ofstream fileMax("max_group.dat", std::ios::binary);
+    std::ofstream fileMin("min_group.dat", std::ios::binary);
 
     for (int i = 0; i < groupMax.size(); i++) {
-        Person p = groupMax[i];
-        fileMax << p.lastName << " " << p.firstName << " " << p.secondName << " " << p.birthDate.toString() << " " << p.education << " " << p.maritalStatus << " " << p.childrenCount << " " << p.profession << " " << p.address.toString() << " " << p.phone << std::endl;
+        fileMax.write(reinterpret_cast<char*>(&groupMax[i]), sizeof(Person));
     }
 
     for (int i = 0; i < groupMin.size(); i++) {
-        Person p = groupMin[i];
-        fileMin << p.lastName << " " << p.firstName << " " << p.secondName << " " << p.birthDate.toString() << " " << p.education << " " << p.maritalStatus << " " << p.childrenCount << " " << p.profession << " " << p.address.toString() << " " << p.phone << std::endl;
+        fileMin.write(reinterpret_cast<char*>(&groupMin[i]), sizeof(Person));
     }
+
     fileMax.close();
     fileMin.close();
 
-	// Вот тут мы выводим эти две группы на экран в виде таблицы
     std::string titleMin = "Малочисленная: " + getEduName(minEdu);
     std::string titleMax = "Многочисленная: " + getEduName(maxEdu);
 
     std::cout << std::left;
     std::cout << std::setw(50) << titleMin << std::setw(50) << titleMax << std::endl;
+    std::cout << std::string(100, '-') << std::endl;
 
-    std::cout << std::setw(20) << "ФИО" << std::setw(8) << "Возр." << std::setw(6) << "Сем." << std::setw(6) << "Дет." << std::setw(6) << "Проф." << "  " << std::setw(20) << "ФИО" << std::setw(8) << "Возр." << std::setw(6) << "Сем." << std::setw(6) << "Дет." << std::setw(6) << "Проф." << std::endl;
+    std::cout << std::setw(20) << "ФИО"
+        << std::setw(8) << "Возр."
+        << std::setw(6) << "Сем."
+        << std::setw(6) << "Дет."
+        << std::setw(6) << "Проф."
+        << "  "
+        << std::setw(20) << "ФИО"
+        << std::setw(8) << "Возр."
+        << std::setw(6) << "Сем."
+        << std::setw(6) << "Дет."
+        << std::setw(6) << "Проф."
+        << std::endl;
+    std::cout << std::string(100, '-') << std::endl;
 
     int maxSize = groupMax.size() > groupMin.size() ? groupMax.size() : groupMin.size();
-
 
     for (int i = 0; i < maxSize; i++) {
         if (i < groupMin.size()) {
             Person p = groupMin[i];
-            std::cout << std::setw(20) << getInitials(p) << std::setw(8) << p.birthDate.getAge() << std::setw(6) << p.maritalStatus << std::setw(6) << p.childrenCount << std::setw(6) << p.profession;
+            std::cout << std::setw(20) << getInitials(p)
+                << std::setw(8) << p.birthDate.getAge()
+                << std::setw(6) << p.maritalStatus
+                << std::setw(6) << p.childrenCount
+                << std::setw(6) << p.profession;
         }
         else {
-			// Если в группе малочисленного образования меньше людей, чем в группе многочисленного, то мы просто выводим пустые строки для выравнивания таблицы.
             std::cout << std::string(46, ' ');
         }
+
         std::cout << "  ";
 
         if (i < groupMax.size()) {
             Person p = groupMax[i];
-            std::cout << std::setw(20) << getInitials(p) << std::setw(8) << p.birthDate.getAge() << std::setw(6) << p.maritalStatus << std::setw(6) << p.childrenCount << std::setw(6) << p.profession;
+            std::cout << std::setw(20) << getInitials(p)
+                << std::setw(8) << p.birthDate.getAge()
+                << std::setw(6) << p.maritalStatus
+                << std::setw(6) << p.childrenCount
+                << std::setw(6) << p.profession;
         }
         else {
             std::cout << std::string(46, ' ');
         }
-		// После каждой строки мы выводим endl для перехода на новую строку.
         std::cout << std::endl;
     }
 
